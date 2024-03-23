@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport"
+		content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1" />
+	<title>某交通平台</title>
+	<link rel="stylesheet" href="css/bootstrap.min.css" />
+	<link rel="stylesheet" href="css/elementUi.css">
+	<style>
+
+		[v-cloak] {
+			display: none;
+		}
+	</style>
+</head>
+
+<body>
+<div id="app" v-cloak>
+	<div v-if="!login">
+		<h2 style="padding-left: 45px; color: #d58512;font-size: 88px">某交通平台</h2>
+		<img style="padding-left: 120px;" :src="'data:image/png;base64,'+ imageBase64" alt="" >
+		<h2 style="padding-left: 170px;">请扫码登录</h2>
+	</div>
+
+	<div v-if="login">
+		<h2 style="padding-left: 45px; color: #d58512;font-size: 88px">某交通平台</h2>
+		<h2 style="color: #4cae4c">登录成功</h2>
+		<h2 style="color:#c0a16b">用户身份ID: {{did}}</h2>
+		<h2 style="color:#5bc0de">平台身份ID: {{issuer}}</h2>
+		<div v-if="!hasVc" style="width: 600px;border: 1px solid #ebebeb;border-radius: 3px;transition: .2s;margin: 5px;padding: 5px;">
+			<h2 style="color: #3a8ee6">申请联合会员凭证:</h2>
+			<el-form ref="form" :model="form" label-width="80px">
+				<el-form-item label="姓名">
+					<el-input v-model="form.name"></el-input>
+				</el-form-item>
+				<el-form-item label="年龄">
+					<el-input v-model="form.age"></el-input>
+				</el-form-item>
+				<el-form-item label="里程">
+					<el-input v-model="form.points"></el-input>
+				</el-form-item>
+				<el-form-item>
+					<el-button type="primary" @click="onSubmit">用户承诺</el-button>
+					<el-button @click="resetForm('form')">重置</el-button>
+				</el-form-item>
+			</el-form>
+			<el-form ref="form2" :model="form2" label-width="80px">
+				<el-form-item label="用户承诺">
+					<el-input v-model="form2.personCommit" :disabled="true"></el-input>
+				</el-form-item>
+				</el-form-item>
+				<el-form-item>
+					<el-button type="primary" @click="onSubmit2" :loading="loading">提交</el-button>
+					<el-button @click="resetForm('form2')">重置</el-button>
+				</el-form-item>
+			</el-form>
+		</div>
+		<div v-if="hasVc">
+			<h2>凭证发布者: {{issuer2}}</h2>
+			<h2>凭证到期时间: {{expirationDate}}</h2>
+			<h2>原始凭证:</h2>
+			<div>
+				<el-button @click="showVCClick">查看原始凭证</el-button>
+				<div style="white-space: pre;" v-if="showVC">{{vc}}</div>
+			</div>
+			<h2 style="color: #31b0d5">零知识检查器:</h2>
+			<div>
+				<div style="white-space: pre;font-size: 20px;">{{userProof}}</div>
+			</div>
+			<h2 style="color: #4cae4c">验证结果:{{verifyResult}}</h2>
+		</div>
+
+	</div>
+
+</div>
+
+	<script type="text/javascript" src="js/jquery-3.3.1.min.js"></script>
+	<script src="js/vue.js"></script>
+	<script src="js/elementUi.js"></script>
+
+
+
+	<script>
+		const params = new URLSearchParams(window.location.search);
+		let sys = params.get('sys');
+		if(sys ==null){
+			sys = 1
+		}
+		console.log(sys);
+		let vue = new Vue({
+			el: '#app',
+			data: function () {
+				return {
+					sys:sys,
+					form: {
+						name: '',
+						age: '',
+						points: '',
+					},form2: {
+						personCommit: '',
+					},
+					imageBase64: "",
+					random:"",
+					login:false,
+					hasVc:false,
+					did:"",
+					vc:"",
+					issuer:"did:example:1BjY5h7G6jQ7ZzGn2XkWFBDnqSP5H8YxHm",
+					issuer2:"",
+					expirationDate:"",
+					proof:"",
+					userProof:"",
+					verifyResult:"success",
+					loading:false,
+					showVC:false,
+				}
+			} ,methods: {
+				onSubmit() {
+					console.log('submit!',this.$data.form);
+					let data = {
+						name:this.$data.form.name,
+						age:this.$data.form.age,
+						jifen:this.$data.form.points,
+					}
+					$.post(ctx + "/createPersonCommit", data, function(result){
+						if (result.success){
+							console.log(result);
+							vue.$data.form2.personCommit = result.data;
+						}
+					}, "json");
+
+				},onSubmit2() {
+					console.log('submit2!',this.$data.form2);
+					vue.$data.loading = true;
+					let data = {
+						userId:this.$data.did,
+						issuerId:this.$data.issuer,
+						name:this.$data.form.name,
+						age:this.$data.form.age,
+						jifen:this.$data.form.points,
+						personCommit:this.$data.form2.personCommit,
+					}
+					$.post(ctx + "/issue", data, function(result){
+						vue.$data.loading = false;
+						if (result.success){
+							console.log(result);
+							vue.$message({
+								message: '创建凭证成功',
+								type: 'success'
+							});
+							let vc = result.data.vc;
+							let userProof = result.data.userProof;
+							vue.$data.login = true;
+							vue.$data.hasVc = true;
+							vue.$data.vc = jsonBeautify(vc);
+							vue.$data.expirationDate = toDate(vc.expirationDate);
+							vue.$data.proof = jsonBeautify(vc.proof);
+							vue.$data.issuer2 = vc.issuer;
+							vue.$data.userProof = jsonBeautify(userProof);
+						}else {
+							vue.$message.error('创建凭证失败');
+						}
+					}, "json");
+
+				},
+				resetForm(formName) {
+					console.log('resetForm!',this.$refs[formName]);
+					this.$refs[formName].resetFields();
+				},
+				showVCClick() {
+					if(vue.$data.showVC){
+						vue.$data.showVC = false;
+					}else{
+						vue.$data.showVC = true;
+					}
+				}
+			}
+		})
+
+	</script>
+
+	<script>
+		let host = window.location.host;
+		let ctx = window.location.origin + "/api";
+
+		$(function () {
+			getQR();
+			setInterval(loginCheck, 1000);
+		});
+
+		function getQR(){
+			$.get(ctx + "/genQrcodeBase64",function(data,status){
+				if (data.success){
+					let info = data.data;
+					vue.$data.imageBase64 = info.imageBase64
+					vue.$data.random = info.random
+					console.log(info)
+				}else {
+					console.error(data)
+				}
+			});
+		}
+
+		function loginCheck(){
+			if (!vue.$data.login){
+				let data = {
+					"random": vue.$data.random,
+				};
+				$.post(ctx + "/loginCheck", data, function(result){
+					if (result.success){
+						console.log(result);
+						if (!result.data.hasVc){
+							vue.$data.login = true;
+							vue.$data.did = result.data.did;
+							vue.$data.hasVc = false;
+							return
+						}
+						let vc = result.data.vc;
+						let userProof = result.data.userProof;
+						vue.$data.login = true;
+						vue.$data.vc = jsonBeautify(vc);
+						vue.$data.issuer2 = vc.issuer;
+						vue.$data.did = vc.credentialSubject.id;
+						vue.$data.expirationDate = toDate(vc.expirationDate);
+						vue.$data.proof = jsonBeautify(vc.proof);
+						vue.$data.userProof = jsonBeautify(userProof);
+						vue.$data.hasVc = true;
+					}
+				}, "json");
+			}
+
+		}
+
+
+		function toDate(timestamp){
+			const date = new Date(timestamp);
+
+			const year = date.getFullYear();
+			const month = date.getMonth() + 1;
+			const day = date.getDate();
+			const hours = date.getHours();
+			const minutes = date.getMinutes();
+			const seconds = date.getSeconds();
+
+			const formattedDate = `${year}-${month < 10 ? '0' + month : month}-${day < 10 ? '0' + day : day}`;
+			const formattedTime = `${hours < 10 ? '0' + hours : hours}:${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+			return formattedDate + " " + formattedTime;
+		}
+
+		function jsonBeautify(json){
+			const formattedJson = JSON.stringify(json, null, 2);
+			return formattedJson;
+		}
+	</script>
+</body>
+
+</html>

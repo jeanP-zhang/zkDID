@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport"
+		content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1" />
+	<title>分布式身份登录</title>
+	<link rel="stylesheet" href="css/bootstrap.min.css" />
+	<link rel="stylesheet" href="css/elementUi.css">
+	<style>
+
+		[v-cloak] {
+			display: none;
+		}
+	</style>
+</head>
+
+<body>
+<div id="app" v-cloak>
+	<div v-if="!login">
+		<img  :src="'data:image/png;base64,'+ imageBase64" alt="" >
+		<h2 style="padding-left: 45px;">请扫码登录</h2>
+	</div>
+
+	<div v-if="login">
+		<h2>登录成功</h2>
+		<h2>身份ID: {{did}}</h2>
+		<h2>凭证发布者: {{issuer}}</h2>
+		<h2>凭证到期时间: {{expirationDate}}</h2>
+		<h2>原始凭证:</h2>
+		<div>
+			<div style="white-space: pre;">{{proof}}</div>
+		</div>
+		<h2>零知识承诺:</h2>
+		<div>
+			<div style="white-space: pre;font-size: 20px;">{{userProof}}</div>
+		</div>
+		<h2>验证结果:{{verifyResult}}</h2>
+	</div>
+
+</div>
+
+	<script type="text/javascript" src="js/jquery-3.3.1.min.js"></script>
+	<script src="js/vue.js"></script>
+	<script src="js/elementUi.js"></script>
+
+
+
+	<script>
+
+		let vue = new Vue({
+			el: '#app',
+			data: function () {
+				return {
+					imageBase64: "",
+					random:"",
+					login:false,
+					did:"",
+					vc:"",
+					issuer:"",
+					expirationDate:"",
+					proof:"",
+					userProof:"",
+					verifyResult:"success"
+				}
+			}
+		})
+
+	</script>
+
+	<script>
+		let host = window.location.host;
+		let ctx = window.location.origin + "/api";
+
+		$(function () {
+			getQR();
+			setInterval(loginCheck, 1000);
+		});
+
+		function getQR(){
+			$.get(ctx + "/genQrcodeBase64",function(data,status){
+				if (data.success){
+					let info = data.data;
+					vue.$data.imageBase64 = info.imageBase64
+					vue.$data.random = info.random
+					console.log(info)
+				}else {
+					console.error(data)
+				}
+
+			});
+		}
+
+		function loginCheck(){
+			if (!vue.$data.login){
+				let data = {
+					"random": vue.$data.random,
+				};
+				$.post(ctx + "/loginCheck", data, function(result){
+					if (result.success){
+						console.log(result);
+						let vc = result.data.vc;
+						let userProof = result.data.userProof;
+						vue.$data.login = true;
+						vue.$data.vc = JSON.stringify(vc);
+						vue.$data.issuer = vc.issuer;
+						vue.$data.did = vc.credentialSubject.id;
+						vue.$data.expirationDate = toDate(vc.expirationDate);
+						vue.$data.proof = jsonBeautify(vc.proof);
+						vue.$data.userProof = jsonBeautify(userProof);
+					}
+				}, "json");
+			}
+
+		}
+
+
+		function toDate(timestamp){
+			const date = new Date(timestamp);
+
+			const year = date.getFullYear();
+			const month = date.getMonth() + 1;
+			const day = date.getDate();
+			const hours = date.getHours();
+			const minutes = date.getMinutes();
+			const seconds = date.getSeconds();
+
+			const formattedDate = `${year}-${month < 10 ? '0' + month : month}-${day < 10 ? '0' + day : day}`;
+			const formattedTime = `${hours < 10 ? '0' + hours : hours}:${minutes < 10 ? '0' + minutes : minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+			return formattedDate + " " + formattedTime;
+		}
+
+		function jsonBeautify(json){
+			const formattedJson = JSON.stringify(json, null, 2);
+			return formattedJson;
+		}
+	</script>
+</body>
+
+</html>
