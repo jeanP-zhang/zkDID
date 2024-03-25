@@ -1,4 +1,3 @@
-origin: https://github.com/rozbb/zkcreds-rs
 
 for http use:
 
